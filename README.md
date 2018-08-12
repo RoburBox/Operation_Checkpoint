@@ -6,5 +6,5 @@
 5) Your project folder now has two folders: `venv` and `git_root_folder`
 
 ## Install dependencies
-1) Activate environment: `call /venv/Scripts/activate.bat`
+1) Activate environment: go to /venv/Scripts and run `activate.bat`
 2) `pip install -r setup/requirements/txt`
