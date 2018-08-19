@@ -62,3 +62,36 @@ with mss() as sct:
 #print('Saving took {}'.format(time() - start_time))
 #print('Saved image: {}'.format(output))
 
+
+
+
+def noise_screen(monitor):
+    """
+    Makes colored noise screenshot with given dimensions.
+    """
+    return np.array(
+        np.random.random_integers(
+            0,
+            255,
+            (
+                monitor['height'] - monitor['top'],
+                monitor['width'] - monitor['left'],
+                3
+            )
+        ),
+        dtype=np.uint8
+    )
+
+def save_noise_video(monitor, fps, seconds):
+    """
+    Saves video with noise as frames.
+    """
+    noise_screens = []
+    for i in range(0,100):
+        noise_screens.append(noise_screen(monitor=monitor))
+        
+    writer = cv2.VideoWriter('testvid.avi', cv2.VideoWriter_fourcc('M','J','P','G'), fps, (monitor['width'], monitor['height']), True)
+    for i in range(0, fps*seconds):
+        writer.write(noise_screens[random.randint(0,99)])
+    writer.release()
+
