@@ -4,3 +4,4 @@ Pillow==5.2.0
 mss==3.2.1
 pynput==1.4
 six==1.11.0
+opencv-python==3.4.2.17
