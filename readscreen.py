@@ -55,18 +55,21 @@ def make_recording(monitor, seconds):
     with mss() as sct:
         while time.time() - start_time < seconds:
         
+            # todo deze terug naar rgb toe, geen grijstinten meer
             # Record screen
+            pixels = cv2.cvtColor(
+                np.array(
+                    ImageGrab.grab(
+                        bbox=(monitor['top'], monitor['left'], monitor['height'], monitor['width'])
+                    )
+                ),
+                cv2.COLOR_BGR2GRAY
+            )
             frame = np.array([
                 [time.time()],
-                cv2.cvtColor(
-                    np.array(
-                        ImageGrab.grab(
-                            bbox=(monitor['top'], monitor['left'], monitor['height'], monitor['width'])
-                        )
-                    ),
-                    cv2.COLOR_BGR2GRAY
-                )
+                np.swapaxes(pixels, 0, 1)
             ])
+            
             
             # Append screen to recording
             if recording is None:
@@ -78,6 +81,9 @@ def make_recording(monitor, seconds):
     return recording
     
 def RGBify_recording(recording):
+"""
+Fills in rgb values for grayscale pixels (1 int to 3 ints)
+"""
     
     def RGBify_image(image):
         new_image = np.zeros((len(image), len(image[0]), 3), dtype='uint8')
@@ -112,7 +118,7 @@ def convert_recording_to_video(recording, monitor, fps):
         fourcc=cv2.VideoWriter_fourcc('M','J','P','G'),
         fps=fps,
         frameSize=(monitor['width'], monitor['height']),
-        isColor=False
+        isColor=True
     )
     
     image_idx = 0
@@ -133,7 +139,6 @@ def convert_recording_to_video(recording, monitor, fps):
         writer.write(recording[image_idx][1])
     writer.release()
 
-
 if __name__ == '__main__':  
 
     fps = 30
@@ -145,6 +150,6 @@ if __name__ == '__main__':
     recording_rgb = RGBify_recording(recording=recording)
     np.save('recording_rgb.npy', recording_rgb)
     recording_rgb = np.load('recording_rgb.npy')
-    convert_recording_to_video(recording=recording, monitor=monitor, fps=fps)
+    convert_recording_to_video(recording=recording_rgb, monitor=monitor, fps=fps)
     
 
