@@ -79,17 +79,19 @@ def make_recording(filename, monitor, seconds):
     recording_chunk = []
     first_write = True
     print('Start recording')
+    
+    # Clear file
     with open(filename, 'w') as file:
         file.write('')
         
     with mss() as sct:
         while time.time() - start_time < seconds:
-            print('read')
+            # Record screen and put it into chunk
             recording_chunk.append({
                 'time': time.time(),
                 'image': cv2.cvtColor(np.array(ImageGrab.grab(bbox=(monitor['top'], monitor['left'], monitor['height'], monitor['width']))), cv2.COLOR_BGR2GRAY)
             })
-            
+            # If chunk is big enough: async write to file with multiprocessing pool.
             if len(recording_chunk) >= 30:
                 processes.append(
                     pool.map_async(
