@@ -34,14 +34,19 @@ def analyze_recording(filename):
     Analyzes recording from file and reports its quality.
     """
     with open(filename, 'r') as file:
-        recording = json.loads(file.read())
+        recording = []
+        while True:
+            row = file.readline()
+            if row is None or row == '':
+                break;
+            recording.append(json.loads(row))
+        
         biggest_framedrop = 0
-        image_prev = None
-        for image in recording:
-            print(image['time'])
-            if image_prev is not None:
-                biggest_framedrop = max(biggest_framedrop, image['time'] - image_prev['time'])
-            image_prev = image
+        frame_prev = None
+        for frame in recording:
+            if frame_prev is not None:
+                biggest_framedrop = max(biggest_framedrop, frame['time'] - frame_prev['time'])
+            frame_prev = frame
         frames = len(recording)
         duration = recording[len(recording)-1]['time'] - recording[0]['time']
         return {
@@ -52,72 +57,50 @@ def analyze_recording(filename):
         }
 
     
-def parallel_file_write_recording(filename, recording_chunk, first_write, output):
+def parallel_file_write_recording(params):
+    filename, recording_chunk = params[0], params[1]
     print('parallel writing chunksize={}'.format(len(recording_chunk)))
     write_string = ''
     for frame in recording_chunk:
-    
-        # Process screen in parallel
-        frame_image = process_screen(screen=frame['image']).tolist()
-        
-        # Handle commas
-        if first_write == False:
-            write_string += ','
-        first_write = False
         
         # Stringify
-        write_string += json.dumps({'time': frame['time'], 'image': frame_image}).replace(' ', '')
+        write_string += json.dumps({'time': frame['time'], 'image': frame['image'].tolist()}).replace(' ', '') + '\n'
         
     # Write
     with open(filename, 'a') as file:
         file.write(write_string)
     
-    
     print('parallel done')
-    output.put('done')
     
 def make_recording(filename, monitor, seconds):
-    
-    
-    # Define an output queue
-    output = mp.Queue()
+    pool = mp.Pool(processes=3)
     processes = []
-    
-    
     start_time = time.time()
     recording_chunk = []
     first_write = True
     print('Start recording')
     with open(filename, 'w') as file:
-        file.write('[')
+        file.write('')
         
     with mss() as sct:
         while time.time() - start_time < seconds:
             print('read')
             recording_chunk.append({
                 'time': time.time(),
-                'image': get_screen(
-                    sct=sct,
-                    monitor=monitor
-                )
+                'image': cv2.cvtColor(np.array(ImageGrab.grab(bbox=(monitor['top'], monitor['left'], monitor['height'], monitor['width']))), cv2.COLOR_BGR2GRAY)
             })
             
-            if len(recording_chunk) >= 5:
-                process = mp.Process(
-                    target=parallel_file_write_recording,
-                    args=(filename, recording_chunk, first_write, output)
+            if len(recording_chunk) >= 30:
+                processes.append(
+                    pool.map_async(
+                        parallel_file_write_recording,
+                        [[filename, recording_chunk]]
+                    )
                 )
-                process.start()
-                processes.append(process)
                 recording_chunk = []
                 first_write = False
-    
     for p in processes:
-        p.join()
-    print([output.get() for p in processes])
-    with open(filename, 'a') as file:
-        file.write(']')
-        
+        p.get()
     print('Stop recording')
 
 def convert_recording_to_video(filename, fps):
@@ -165,7 +148,6 @@ def rand_string(length, output):
                         + string.ascii_uppercase
                         + string.digits)
                    for i in range(length))
-    print('hoi')
     output.put(rand_str)
 
 import string
@@ -176,8 +158,8 @@ if __name__ == '__main__':
     seconds = 5
 
     monitor = {'top': 0, 'left': 0, 'width': 1400, 'height': 900}
-    make_recording(filename='recording.txt', monitor=monitor, seconds=seconds)
-    print(analyze_recording(filename='recording.txt'))
+    make_recording(filename='recording', monitor=monitor, seconds=seconds)
+    print(analyze_recording(filename='recording'))
     #convert_recording_to_video(recording=recording, fps=fps)
     
 
