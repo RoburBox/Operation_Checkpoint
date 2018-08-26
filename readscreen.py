@@ -1,15 +1,12 @@
 import numpy as np
-from PIL import ImageGrab, Image
+from PIL import ImageGrab
 from mss.windows import MSS as mss
 import time
-import cv2
-import math
 import psutil
 import os
 import datetime
 from pynput.keyboard import Key, Listener
 import multiprocessing
-import ctypes
 import myModule
 
 def get_screen(sct, monitor):
@@ -17,18 +14,6 @@ def get_screen(sct, monitor):
     Grab screenshot without processing it, for faster capture
     """
     return sct.grab(monitor)
-
-def process_screen(screen):
-    return np.asarray(
-        Image.frombytes(
-            'RGB',
-            screen.size,
-            screen.bgra,
-            'raw',
-            'BGRX'
-        )
-        #.tobytes()
-    )
 
 def analyze_recording(folder_path):
     """
@@ -53,41 +38,12 @@ def analyze_recording(folder_path):
         'biggest_framedrop': biggest_framedrop,
         'total_key_presses': keys_pressed
     }
- 
-def convert_recording_to_video(recording, monitor, fps):
-    """
-    Converts recorded array of images to video avi format.
-    Resulting video is in given fps.
-    If given recording has missing frames, they are filled with the previous frame.
-    Recording must be [r,g,b] per pixel.
-    """
-    writer = cv2.VideoWriter(
-        filename='testvid.avi',
-        fourcc=cv2.VideoWriter_fourcc('M','J','P','G'),
-        fps=fps,
-        frameSize=(monitor['width'], monitor['height']),
-        isColor=True
-    )
-    
-    image_idx = 0
-    writer.write(recording[image_idx][1]) # Write first image, then iterate from there
-    start_time = recording[0][0][0]
-    # Loop over each frame of resulting video, if recording (recording) is missing frames then fill it in with the most recent frame
-    for frame_count in range(1, fps*seconds):
-
-        # Take next image when the realtime video has reached the time of that image
-        # parse frame_count into seconds and the remaining fractions of the second (fps)
-        target_image_time = start_time + math.floor(frame_count / fps) + (frame_count % fps) / fps
-        
-        # Try increment to next image if realtime video's frame time is equal to or past next image's time
-        if image_idx + 1 < len(recording) and target_image_time >= recording[image_idx][0][0]:
-            image_idx += 1
-
-        # Write current image to video (if no increment then write same image again)
-        writer.write(recording[image_idx][1])
-    writer.release()   
 
 def make_recording_and_save(monitor, folder_path, shared_arr):
+    """
+    Records and saves screenshots.
+    Waits for key press to start and stop.
+    """
     print('Press q to start recording, press w to stop recording')
     
     def on_release(key):
@@ -126,6 +82,10 @@ def make_recording_and_save(monitor, folder_path, shared_arr):
 
 
 def make_folder():
+    """
+    Handles folder making and checking.
+    Returns folder path string.
+    """
     if os.path.exists('data') == True:
         folder_path = 'data\\{}'.format(datetime.datetime.utcnow().strftime('%Y-%m-%dT%H_%M_%S+0000'))
         os.makedirs(folder_path)
@@ -168,16 +128,18 @@ def parallel_listen(param):
     with Listener(on_press=on_press, on_release=on_release) as listener:
         listener.join()
 
-def initProcess(shared_arr):
-  myModule.shared_arr = shared_arr
+def init_process(shared_arr):
+    """
+    Pool initializer
+    """
+    myModule.shared_arr = shared_arr
 
 if __name__ == '__main__':
-    monitor = {'top': 0, 'left': 0, 'width': 1280, 'height': 960}
-    #folder_path = 'data\\2018-08-25T15_17_42+0000\\'
+    monitor = {'top': 40, 'left': 10, 'width': 1280, 'height': 960}
     
     # Share keyboard inputs with parallel key listener
     shared_arr = multiprocessing.Array('I', [0, 0, 0, 0, 0], lock=False)
-    pool = multiprocessing.Pool(initializer=initProcess, processes=1, initargs=(shared_arr,))
+    pool = multiprocessing.Pool(initializer=init_process, processes=1, initargs=(shared_arr,))
     pool.map_async(parallel_listen, shared_arr)
     
     
@@ -185,4 +147,3 @@ if __name__ == '__main__':
     make_recording_and_save(monitor=monitor, folder_path=folder_path, shared_arr=shared_arr)
     
     print(analyze_recording(folder_path))
-    #convert_recording_to_video(recording=recording_rgb, monitor=monitor, fps=fps)
