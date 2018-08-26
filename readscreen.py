@@ -19,6 +19,7 @@ def analyze_recording(folder_path):
     """
     Analyzes recording from file and reports its quality.
     """
+    print('Analyzing recording...')
     biggest_framedrop = 0
     keys_pressed = 0
     frame_prev = None
@@ -39,46 +40,52 @@ def analyze_recording(folder_path):
         'total_key_presses': keys_pressed
     }
 
-def make_recording_and_save(monitor, folder_path, shared_arr):
+def make_recording_and_save(monitor, shared_arr):
     """
     Records and saves screenshots.
     Waits for key press to start and stop.
     """
-    print('Press q to start recording, press w to stop recording')
+    folder_path = None
     
     def on_release(key):
-        if 'char' in dir(key) and key.char == 'q':
+        if 'char' in dir(key) and key.char == 'z':
             return False
+        if folder_path is not None and 'char' in dir(key) and key.char == 'c':
+            print(analyze_recording(folder_path))
             
-    # Wait for q key to be pressed before recording
-    with Listener(on_release=on_release) as listener:
-        listener.join()
-        print('Start recording')
-        
-        start_time = time.time()
-        try:
-            with mss() as sct:
-                for frame_nr in range(0, 500):
+    print('Press z to start recording, press x to stop recording')
+    while True:
+        print('Waiting for input')
+        # Wait for z key to be pressed before recording
+        with Listener(on_release=on_release) as listener:
+            listener.join()
+            print('Start recording')
+            
+            folder_path = make_folder()
+            start_time = time.time()
+            try:
+                with mss() as sct:
+                    for frame_nr in range(0, 500):
+                    
+                        # W key pressed
+                        if shared_arr[4] == 1:
+                            shared_arr[4] = 0
+                            break
+                        
+                        # Record screen
+                        frame = np.array([
+                            [time.time()],
+                            [shared_arr[0], shared_arr[1], shared_arr[2], shared_arr[3]],
+                            get_screen(sct=sct, monitor=monitor)
+                        ])
+                        
+                        # Write frame to file
+                        np.save('{}\\frame_{}'.format(folder_path, frame_nr), frame)
                 
-                    # W key pressed
-                    if shared_arr[4] == 1:
-                        shared_arr[4] = 0
-                        break
-                    
-                    # Record screen
-                    frame = np.array([
-                        [time.time()],
-                        [shared_arr[0], shared_arr[1], shared_arr[2], shared_arr[3]],
-                        get_screen(sct=sct, monitor=monitor)
-                    ])
-                    
-                    # Write frame to file
-                    np.save('{}\\frame_{}'.format(folder_path, frame_nr), frame)
-            
-            print('Stop recording')
-        except MemoryError as e:
-            print('MemoryError caught, process is using {}MB for {} frames'.format(psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024, frame_nr))
-            raise e
+                print('Stop recording, press c for recording stats')
+            except MemoryError as e:
+                print('MemoryError caught, process is using {}MB for {} frames'.format(psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024, frame_nr))
+                raise e
 
 
 def make_folder():
@@ -110,9 +117,8 @@ def parallel_listen(param):
         elif key == Key.left:
             myModule.shared_arr[3] = 1
         elif 'char' in dir(key):
-            if key.char == 'w':
+            if key.char == 'x':
                 myModule.shared_arr[4] = 1
-                return False
             
     def on_release(key):
         if key == Key.up:
@@ -123,7 +129,7 @@ def parallel_listen(param):
             myModule.shared_arr[2] = 0
         elif key == Key.left:
             myModule.shared_arr[3] = 0
-        # w is set by other process
+        # shared_arr[4] is set by other process
         
     with Listener(on_press=on_press, on_release=on_release) as listener:
         listener.join()
@@ -141,9 +147,4 @@ if __name__ == '__main__':
     shared_arr = multiprocessing.Array('I', [0, 0, 0, 0, 0], lock=False)
     pool = multiprocessing.Pool(initializer=init_process, processes=1, initargs=(shared_arr,))
     pool.map_async(parallel_listen, shared_arr)
-    
-    
-    folder_path = make_folder()
-    make_recording_and_save(monitor=monitor, folder_path=folder_path, shared_arr=shared_arr)
-    
-    print(analyze_recording(folder_path))
+    make_recording_and_save(monitor=monitor, shared_arr=shared_arr)

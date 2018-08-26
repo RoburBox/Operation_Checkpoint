@@ -74,33 +74,57 @@ def convert_recording_to_video(folder_path, video_name, fps):
             writer.write(frame[2])
     writer.release()
     
-if len(sys.argv) == 2:
+class BadCLIArgument(Exception):
+    def __init__(self, message):
+        self.message = message
+        
+def assert_date_format(date_string):
+    try:
+        int(date_string[0])
+        int(date_string[1])
+        int(date_string[2])
+        int(date_string[3])
+        int(date_string[5])
+        int(date_string[6])
+        int(date_string[8])
+        int(date_string[9])
+        int(date_string[11])
+        int(date_string[12])
+        int(date_string[14])
+        int(date_string[15])
+        int(date_string[17])
+        int(date_string[18])
+        int(date_string[20])
+        int(date_string[21])
+        int(date_string[22])
+        int(date_string[23])
+    except ValueError:
+        raise BadCLIArgument('Date expects integer')
+    
+    if date_string[4] != '-' or date_string[7] != '-':
+        raise BadCLIArgument('Date expects -')
+    if date_string[10] != 'T':
+        raise BadCLIArgument('Date expects T')
+    if date_string[13] != '_' or date_string[16] != '_':
+        raise BadCLIArgument('Date expects _')
+    if not (date_string[19] == '+' or date_string[19] == '-'):
+        raise BadCLIArgument('Date expects + or -')
+        
+def assertCLIArguments():
+    if len(sys.argv) != 2:
+        raise BadCLIArgument('Must give 1 argument')
     folder_name = sys.argv[1]
+    if '\'' in folder_name:
+        raise BadCLIArgument('Do not use single quotes')
+    assert_date_format(folder_name)
 
-    # Verify command line arguments
-    if not '\'' in folder_name:
-        if len(folder_name.split('-')) == 3:
-            if len(folder_name.split('T')) == 2:
-                if len(folder_name.split('_')) == 3:
-                    if len(folder_name.split('+')) == 2:
-
-                        # Convert
-                        convert_recording_to_video(
-                            folder_path='data\\{}\\'.format(folder_name),
-                            video_name='{}.avi'.format(folder_name),
-                            fps=30
-                        )
-                    else:
-                        print('Bad arguments: check 5 failed')
-                else:
-                    print('Bad arguments: check 4 failed')
-            else:
-                print('Bad arguments: check 3 failed')
-        else:
-            print('Bad arguments: check 2 failed')
-    else:
-        print('Bad arguments: check 1 failed')
-else:
-    print('Must give 1 argument')
-print('Stopping...')
+    
+# Main
+assertCLIArguments()
+folder_name = sys.argv[1]
+convert_recording_to_video(
+    folder_path='data\\{}\\'.format(folder_name),
+    video_name='{}.avi'.format(folder_name),
+    fps=30
+)
 
