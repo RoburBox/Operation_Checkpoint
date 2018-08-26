@@ -8,6 +8,8 @@ import datetime
 from pynput.keyboard import Key, Listener
 import multiprocessing
 import myModule
+from process_recording import process_recording
+from analyze_recording import analyze_recording
 
 def get_screen(sct, monitor):
     """
@@ -15,77 +17,47 @@ def get_screen(sct, monitor):
     """
     return sct.grab(monitor)
 
-def analyze_recording(folder_path):
-    """
-    Analyzes recording from file and reports its quality.
-    """
-    print('Analyzing recording...')
-    biggest_framedrop = 0
-    keys_pressed = 0
-    frame_prev = None
-    file_names = sorted(os.listdir(folder_path), key=lambda file_name: int(file_name.split('frame_')[1].split('.npy')[0]))
-    for file_name in file_names:
-        frame = np.load('{}{}'.format(folder_path, file_name))
-        if frame_prev is not None:
-            biggest_framedrop = max(biggest_framedrop, frame[0][0] - frame_prev[0][0])
-        keys_pressed += frame[1][0] + frame[1][1] + frame[1][2] + frame[1][3]
-        frame_prev = frame
-    frame_count = len(file_names)
-    duration = np.load('{}{}'.format(folder_path, file_names[len(file_names)-1]))[0][0] - np.load('{}{}'.format(folder_path, file_names[0]))[0][0]
-    return {
-        'duration': duration,
-        'frame_count': frame_count,
-        'average_fps': -1 if duration == 0 else frame_count/duration,
-        'biggest_framedrop': biggest_framedrop,
-        'total_key_presses': keys_pressed
-    }
-
 def make_recording_and_save(monitor, shared_arr):
     """
     Records and saves screenshots.
     Waits for key press to start and stop.
     """
-    folder_path = None
     
     def on_release(key):
-        if 'char' in dir(key) and key.char == 'z':
+        if 'char' in dir(key) and key.char == 'a':
             return False
-        if folder_path is not None and 'char' in dir(key) and key.char == 'c':
-            print(analyze_recording(folder_path))
             
-    print('Press z to start recording, press x to stop recording')
-    while True:
-        print('Waiting for input')
-        # Wait for z key to be pressed before recording
-        with Listener(on_release=on_release) as listener:
-            listener.join()
-            print('Start recording')
-            
-            folder_path = make_folder()
-            start_time = time.time()
-            try:
-                with mss() as sct:
-                    for frame_nr in range(0, 500):
-                    
-                        # W key pressed
-                        if shared_arr[4] == 1:
-                            shared_arr[4] = 0
-                            break
-                        
-                        # Record screen
-                        frame = np.array([
-                            [time.time()],
-                            [shared_arr[0], shared_arr[1], shared_arr[2], shared_arr[3]],
-                            get_screen(sct=sct, monitor=monitor)
-                        ])
-                        
-                        # Write frame to file
-                        np.save('{}\\frame_{}'.format(folder_path, frame_nr), frame)
+    print('Press a to start recording, press s to stop recording')
+    with Listener(on_release=on_release) as listener:
+        listener.join()
+        print('Start recording')
+        
+        folder_path = make_folder()
+        start_time = time.time()
+        try:
+            with mss() as sct:
+                for frame_nr in range(0, 500):
                 
-                print('Stop recording, press c for recording stats')
-            except MemoryError as e:
-                print('MemoryError caught, process is using {}MB for {} frames'.format(psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024, frame_nr))
-                raise e
+                    # W key pressed
+                    if shared_arr[4] == 1:
+                        shared_arr[4] = 0
+                        break
+                    
+                    # Record screen
+                    frame = np.array([
+                        [time.time()],
+                        [shared_arr[0], shared_arr[1], shared_arr[2], shared_arr[3]],
+                        get_screen(sct=sct, monitor=monitor)
+                    ])
+                    
+                    # Write frame to file
+                    np.save('{}\\frame_{}'.format(folder_path, frame_nr), frame)
+            
+            print('Stop recording')
+            return folder_path
+        except MemoryError as e:
+            print('MemoryError caught, process is using {}MB for {} frames'.format(psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024, frame_nr))
+            raise e
 
 
 def make_folder():
@@ -117,7 +89,7 @@ def parallel_listen(param):
         elif key == Key.left:
             myModule.shared_arr[3] = 1
         elif 'char' in dir(key):
-            if key.char == 'x':
+            if key.char == 's':
                 myModule.shared_arr[4] = 1
             
     def on_release(key):
@@ -147,4 +119,6 @@ if __name__ == '__main__':
     shared_arr = multiprocessing.Array('I', [0, 0, 0, 0, 0], lock=False)
     pool = multiprocessing.Pool(initializer=init_process, processes=1, initargs=(shared_arr,))
     pool.map_async(parallel_listen, shared_arr)
-    make_recording_and_save(monitor=monitor, shared_arr=shared_arr)
+    folder_path = make_recording_and_save(monitor=monitor, shared_arr=shared_arr)
+    process_recording(folder_path)
+    print(analyze_recording(folder_path))
