@@ -95,3 +95,31 @@ def save_noise_video(monitor, fps, seconds):
         writer.write(noise_screens[random.randint(0,99)])
     writer.release()
 
+def make_recording(monitor, seconds_max, frames_max):
+    recording = None
+    print('Start recording')
+    start_time = time.time()
+    max_frames = 340
+    try:
+        with mss() as sct:
+            while recording is None or (len(recording) < max_frames and (frames_max is None or len(recording) < frames_max)):
+                timenow = time.time()
+                if seconds_max is not None and timenow - start_time >= seconds_max:
+                    break
+                    
+                # Record screen
+                frame = np.array([[timenow], get_screen(sct=sct, monitor=monitor)])
+                
+                # Append screen to recording
+                if recording is None:
+                    recording = np.array([frame])
+                else:
+                    recording = np.concatenate((recording, np.array([frame])))
+        
+        print('Stop recording')
+        return recording
+        
+    except MemoryError as e:
+        print('MemoryError caught, process is using {}MB for {} frames'.format(psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024, len(recording)))
+        raise e
+
