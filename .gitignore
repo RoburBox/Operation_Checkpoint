@@ -1,3 +1,7 @@
 *.png
 *.jpg
 *.jpeg
+*.avi
+*.mp4
+/data
+/__pycache__
