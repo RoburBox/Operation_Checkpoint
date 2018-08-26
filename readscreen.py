@@ -36,7 +36,7 @@ def make_recording_and_save(monitor, shared_arr):
         start_time = time.time()
         try:
             with mss() as sct:
-                for frame_nr in range(0, 500):
+                for frame_nr in range(0, 1000):
                 
                     # W key pressed
                     if shared_arr[4] == 1:
